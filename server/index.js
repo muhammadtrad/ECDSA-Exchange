@@ -12,7 +12,7 @@ const key = ec.genKeyPair();
 app.use(cors());
 app.use(express.json());
 
-const numberOfAddresses = 10;
+const numberOfAddresses = 3;
 
 const balances = {};
 const keyPair = {};
