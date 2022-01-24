@@ -2,14 +2,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 const port = 3042;
-const EC = require('elliptic').ec;
-const SHA256 = require('crypto-js/sha256');
-const ec = new EC('secp256k1');
-const secp = require("ethereum-cryptography/secp256k1");
-const { utf8ToBytes, hexToBytes } = require("ethereum-cryptography/utils");
-
-
-const key = ec.genKeyPair();
+const secp = require("@noble/secp256k1");
 
 // localhost can have cross origin errors
 // depending on the browser you use!
@@ -22,19 +15,17 @@ const balances = {};
 const keyPair = {};
 
 const generateKey = () => {
-  const key = ec.genKeyPair();
-  const publicKey = key.getPublic().encode('hex');
-  const shortPublicKey = '0x' + publicKey.toString('hex').slice(0, -70);
+  let privateKey = secp.utils.randomPrivateKey();
+  privateKey = Buffer.from(privateKey).toString('hex');
+  const publicKey = secp.getPublicKey(privateKey);
+  const shortPublicKey = '0x' + publicKey.slice(publicKey.length - 40);
   balances[shortPublicKey] = 100;
-  keyPair[shortPublicKey] = '0x' + key.getPrivate().toString(16);
+  keyPair[shortPublicKey] = privateKey;
 }
 
-
-const verifyMessage = async (message, privateKey, publicKey) => {
-  console.log('BEFORE MESSAGE HASH ! ');
-  const messageHash = utf8ToBytes(SHA256(message));
-  const signature = await secp.sign(messageHash, utf8ToBytes(privateKey));
-  return secp.verify(signature, messageHash, utf8ToBytes(publicKey));
+const verifyMessage = async (privateKey, publicKey) => {
+   const publicKeyFromPrivateKey = secp.getPublicKey(privateKey);
+   return publicKeyFromPrivateKey === publicKey;
 }
 
 // get the balance of an address
@@ -46,7 +37,7 @@ app.get('/balance/:address', (req, res) => {
 // send an amount from the sender to the recipient
 app.post('/send', async (req, res) => {
   const {sender, recipient, amount, privateKey} = req.body;
-  const isSigned = await verifyMessage(amount, privateKey, sender);
+  const isSigned = await verifyMessage(privateKey, sender);
   if (isSigned) {
     balances[sender] -= amount;
     balances[recipient] = (balances[recipient] || 0) + parseInt(amount);
@@ -69,6 +60,3 @@ app.listen(port, () => {
   console.log('============');
   Object.keys(keyPair).forEach((address, index) => console.log(`(${index}) ${keyPair[address]} `));
 });
-
-
-verifyMessage(10, '0x04754e3bce0d73a5c538b378c15a4190053ff91e722717d0ccbca076e2a4', '0xc7b4da4fd67673c6627557f37f6f9d2b1a384391dfc6ef42cdf4458f5050beda');
